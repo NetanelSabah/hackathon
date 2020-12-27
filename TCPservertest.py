@@ -38,7 +38,7 @@ print('The server is ready to receive')
 initTime = time.time()
 remainingTime = WAITING_FOR_CLIENT_COUNT # initial remaining time
 try:
-    while socket.gettimeout()>0:
+    while 0 < remainingTime:
         server.settimeout(remainingTime)
         (connectionSocket, (ip, port)) = server.accept()
         newThread = ClientThread(ip, port)

@@ -60,18 +60,17 @@ try:
     print('The server is ready to receive')
     initTime = time.time()
     remainingTime = WAITING_FOR_CLIENT_COUNT # initial remaining time
-    while socket.gettimeout()>0: 
+    while remainingTime>0: 
         socket.settimeout(remainingTime)
-        try:
-            (connectionSocket, (ip, port)) = server.accept()
-            newThread = ClientThread(ip, port)
-            newThread.start()
-            threads.append(newThread)
-        except socket.timeout:
-            print("timeout caught")
+        (connectionSocket, (ip, port)) = server.accept()
+        newThread = ClientThread(ip, port)
+        newThread.start()
+        threads.append(newThread)
         remainingTime = WAITING_FOR_CLIENT_COUNT-(time.time()-initTime) #set the remaining time to the server (essentially 10 - time elapsed since start)
+except socket.timeout:
+    print("timeout caught")
 except Exception as e:
-    print("TCP server socket failed.\nError: "+e)
+    print("TCP server socket failed.\nError: "+str(e))
 
 for t in threads:
     t.join()
