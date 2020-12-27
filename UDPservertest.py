@@ -2,12 +2,12 @@ import socket
 import time
 
 SERVER_PORT = 2092
-UDP_PORT = 13118
+UDP_PORT = 13117
 
 server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #set up UDP
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) #allow multiple clients (important)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1) #broadcast
-server.bind(('', SERVER_PORT))
+server.bind(('', UDP_PORT))
 
 
 server.settimeout(0.2)

@@ -1,10 +1,12 @@
 import socket
 import threading
+import time
 
 SERVER_TCP_PORT = 5997
-IP_ADDRESS = '127.0.0.1'  # change to socket.gethostbyname(socket.gethostname())
-
+IP_ADDRESS = socket.gethostbyname(socket.gethostname())  # change to '127.0.0.1' 
+print(IP_ADDRESS)
 print_lock = threading.Lock
+WAITING_FOR_CLIENT_COUNT = 15
 threads = []
 
 class ClientThread(threading.Thread):
@@ -33,11 +35,21 @@ server.bind(('', SERVER_TCP_PORT))
 server.listen(1)
 print('The server is ready to receive')
 
-while True:
-    (connectionSocket, (ip, port)) = server.accept()
-    newThread = ClientThread(ip, port)
-    newThread.start()
-    threads.append(newThread)
+initTime = time.time()
+remainingTime = WAITING_FOR_CLIENT_COUNT # initial remaining time
+try:
+    while socket.gettimeout()>0:
+        server.settimeout(remainingTime)
+        (connectionSocket, (ip, port)) = server.accept()
+        newThread = ClientThread(ip, port)
+        newThread.start()
+        threads.append(newThread)    
+        remainingTime = WAITING_FOR_CLIENT_COUNT - (time.time() - initTime) #set the remaining time to the server (essentially 10 - time elapsed since start)
+        print(str(remainingTime)+"\n")
+except socket.timeout:
+    print("timeout.")
+except Exception as e:
+    print("TCP server socket failed.\nError: "+str(e))
 
 for t in threads:
     t.join()
