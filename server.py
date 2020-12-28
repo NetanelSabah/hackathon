@@ -2,31 +2,17 @@ import threading
 import socket
 import time
 import struct
+from logAndColor import *
 
-SERVER_UDP_PORT = 13117
+SERVER_UDP_PORT = 13118
 SERVER_TCP_PORT = 5997
-WAITING_FOR_CLIENT_COUNT = 5 # total time for the "waiting for client" mode
-DEBUG = True
+WAITING_FOR_CLIENT_COUNT = 15 # total time for the "waiting for client" mode
+WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
+UDP_TIMEOUT = 0.2 #timeout for UDP server
+MAGIC_COOKIE = 0xfeedbeef #UDP header cookie
+TYPE = 0x2 # UDP messagetype
 
 threads = []
-
-
-def log(st):
-    if DEBUG:
-        print(bcolors.GREEN + st + bcolors.WHITE)
-
-def err(st):
-    if DEBUG:
-        print(bcolors.RED + st + bcolors.WHITE)
-
-class bcolors:
-    RED = '\u001b[31m'
-    GREEN = '\u001b[32m'
-    YELLOW = '\u001b[33m'
-    BLUE = '\u001b[34m'
-    MAGENTA = '\u001b[35m'
-    CYAN = '\u001b[36m'
-    WHITE = '\u001b[37m'
 
 class UDPBroadcast(threading.Thread):
 
@@ -41,16 +27,16 @@ class UDPBroadcast(threading.Thread):
             UDPserver.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) #allow multiple clients (important)
             UDPserver.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1) #broadcast
             UDPserver.bind(('', SERVER_UDP_PORT))
-            UDPserver.settimeout(0.2)
+            UDPserver.settimeout(UDP_TIMEOUT)
 
             # sending broadcast messages
-            message = struct.pack('IBH', 0xfeedbeef, 0x2, SERVER_TCP_PORT)  # encode magic cookie, type and TCP port
+            message = struct.pack('IBH', MAGIC_COOKIE, TYPE, SERVER_TCP_PORT)  # encode magic cookie, type and TCP port
             for i in range(WAITING_FOR_CLIENT_COUNT): #repeat 10 times
                 UDPserver.sendto(message, ('<broadcast>', SERVER_UDP_PORT))
                 log("%s) message sent!"%i)
                 time.sleep(1) # wait a second between every broadcast
         except Exception as e:
-                print("Failed to broadcast messages via UDP.\nERROR: "+str(e))
+            print("Failed to broadcast messages via UDP.\nERROR: "+str(e))
         log("UDP end")
 
 class ClientThread(threading.Thread):
@@ -65,7 +51,7 @@ class ClientThread(threading.Thread):
             try:
                 data = connectionSocket.recv(1048)
             except Exception as e:
-                print("Client socket %s/%s failed.\n" %(ip, port))
+                print("Client socket %s/%s failed." %(ip, port))
                 err("Error: "+str(e))
             print ("Server received data: %s"%data)
             #connectionSocket.send(b"message received")  # echo 
@@ -86,11 +72,10 @@ try:
     #UDP thread start
     UDPthread = UDPBroadcast()
     UDPthread.start()
-    threads.append(UDPthread)
 
     #accept users in TCP
     initTime = time.time()
-    remainingTime = WAITING_FOR_CLIENT_COUNT + 0.2 # initial remaining time, plus time to catch last requests from UDP broadcasts
+    remainingTime = WAITING_FOR_CLIENT_COUNT + WAITING_FOR_CLIENT_EXTRA # initial remaining time, plus time to catch last requests from UDP broadcasts
     while remainingTime>0: 
         server.settimeout(remainingTime) # the timeout will be the remaining time
         (connectionSocket, (ip, port)) = server.accept()
@@ -99,13 +84,14 @@ try:
         threads.append(newThread)
         remainingTime = WAITING_FOR_CLIENT_COUNT-(time.time()-initTime) #set the remaining time to the server (essentially 10 - time elapsed since start)
 except socket.timeout:
-    pass
+    pass # timeouts are OK.
 except Exception as e:
-    print("TCP server socket failed.\n")
+    print("TCP server socket failed.")
     err("Error: "+str(e))
 print("Finished listening, game start...")
 
 
 for t in threads:
     t.join()
+    UDPthread.join()
       
