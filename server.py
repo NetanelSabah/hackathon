@@ -13,7 +13,7 @@ MAGIC_COOKIE = 0xfeedbeef #UDP header cookie
 TYPE = 0x2 # UDP messagetype
 
 threads = [] # TCP client threads pool
-player_sockets = {} # player sockets pool (dictionary of format name:socket)
+player_sockets = {} # player sockets pool (dictionary of format name:(socket, status))
 player_sockets_lock = threading.Lock()
 
 class UDPBroadcast(threading.Thread):
@@ -57,14 +57,17 @@ class ClientThread(threading.Thread):
             if (result_length > 0 and result[result_length-1] == '\n'): # check if it's a name
                 name = result[:result_length-1]
                 log("player added to pool: %s"%name)
-                player_sockets[name] = connectionSocket 
+                player_sockets[name] = (connectionSocket, True) 
             else:
                 print("got an invalid connection message (does not end with newline), closing connection.")
         except Exception as e:
             print("Client socket %s/%s failed." %(ip, port))
             err("Error: "+str(e))
+        time.sleep(15)
         log("closing connection with %s/%s..." %(ip, port))
-        player_sockets.pop(connectionSocket)
+        if (player_sockets.get(name) != None):
+            (conn, status) = player_sockets[name]
+            status = False
         connectionSocket.close()
 
 

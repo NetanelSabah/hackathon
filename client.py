@@ -42,7 +42,8 @@ while True:
         TCPclient.connect((addr, port))
         
         TCPclient.send(bytes(GROUP_NAME+"\n", 'utf-8'))
-        time.sleep(15)
+        while (TCPclient.recv(1048) != b''):
+            time.sleep(1)
         TCPclient.close()
 
 
