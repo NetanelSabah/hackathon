@@ -2,9 +2,10 @@ import threading
 import socket
 import time
 import struct
+import random
 from logAndColor import *
 
-SERVER_UDP_PORT = 13118
+SERVER_UDP_PORT = 13117
 SERVER_TCP_PORT = 5997
 WAITING_FOR_CLIENT_COUNT = 15 # total time for the "waiting for client" mode
 WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
@@ -16,6 +17,7 @@ threads = [] # TCP client threads pool
 player_sockets = {} # player sockets pool (dictionary of format name:{socket : <value>, thread : <value>, status : <value>})
 player_sockets_grouping_list = []
 player_sockets_lock = threading.Lock()
+start_event = threading.Event()
 
 group1 = []
 group2 = []
@@ -49,7 +51,7 @@ class UDPBroadcast(threading.Thread):
 
 class ClientThread(threading.Thread):
     def __init__(self, ip, port): 
-        threading.Thread.__init__(self) 
+        threading.Thread.__init__(self)
         self.ip = ip 
         self.port = port
         self.name = ''
@@ -60,16 +62,25 @@ class ClientThread(threading.Thread):
             data = connectionSocket.recv(1048)
             result = data.decode('utf8')
             result_length = len(result)
-            if (result_length > 0 and result[result_length-1] == '\n'): # check if it's a name
-                name = result[:result_length-1]
-                log("player added to pool: %s"%name)
-                player_sockets[name] = {'name':connectionSocket, 'thread': threading.get_ident() , 'status':True}
+            if (result_length > 0 and result[-1] == '\n'): # check if it's a name
+                name = result[:-1]
+                if (player_sockets.get(name) == None):
+                    log("player added to pool: %s" % name)
+                    player_sockets[name] = {'name' : connectionSocket, 'thread': threading.get_ident(), 'status' : True}
+                else:
+                    print("group with that name already exists, closing connection.")
+                    connectionSocket.close()
+                    return
             else:
                 print("got an invalid connection message (does not end with newline), closing connection.")
+                connectionSocket.close()
+                return
         except Exception as e:
             print("Client socket %s/%s failed." %(ip, port))
             err("Error: "+str(e))
-        threading.wait()
+        start_event.wait()
+
+        connectionSocket.send(bytes(message, 'utf-8'))
 
         log("closing connection with %s/%s..." %(ip, port))
         if (player_sockets.get(name) != None):
@@ -85,11 +96,11 @@ try:
     server.listen(1)
     print("Server started, listening on IP address %s for %s seconds"%(TCP_server_IP,WAITING_FOR_CLIENT_COUNT))
 
-    #UDP thread start
+    # UDP thread start
     UDP_thread = UDPBroadcast()
     UDP_thread.start()
     
-    #accept users in TCP
+    # accept users in TCP
     initTime = time.time()
     remainingTime = WAITING_FOR_CLIENT_COUNT + WAITING_FOR_CLIENT_EXTRA # initial remaining time, plus time to catch last requests from UDP broadcasts
     while remainingTime>0: 
@@ -108,8 +119,8 @@ log("Finished listening, game start...")
 
 # shuffling the clients randomly
 
-player_sockets_grouping_list = list(player_sockets.items())
-player_sockets_grouping_list.shuffle(1)
+player_sockets_grouping_list = list(player_sockets.keys())
+random.shuffle(player_sockets_grouping_list)
 
 # now, the teams will be assigned in the following order: even - group 1, odd - group 2
 group1 = player_sockets_grouping_list[::2]
@@ -120,7 +131,7 @@ log("shuffled teams...")
 # set message to start
 message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % ('\n'.join(group1), '\n'.join(group2)) # the start message
 # wake client threads
-threading.notify_all()
+threading.Thread.notify_all()
 
 
 for t in threads:

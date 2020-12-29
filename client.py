@@ -5,9 +5,11 @@ from logAndColor import *
 import time
 
 GROUP_NAME = "Hashawalilim"
-UDP_PORT = 13118
+UDP_PORT = 13117
 MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
+
+message = ''
 
 while True:
     #UDP connection setup
@@ -35,18 +37,24 @@ while True:
             print("Received incoming message, but couldn't decode the data")
             err("ERROR: " + str(e))
     
-    #connecting to a server
+    # connecting to a server
     try:
-        #setting up TCP socket
+        # setting up TCP socket
         TCPclient = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
         TCPclient.connect((addr, port))
-        
+
+        # send first message (name)
         TCPclient.send(bytes(GROUP_NAME+"\n", 'utf-8'))
-        while (TCPclient.recv(1048) != b''):
-            time.sleep(1)
-        TCPclient.close()
-
-
     except Exception as e:
         print("Couldn't connect via TCP to server at %s/%s."%(addr,port))
         err("ERROR: "+ str(e))
+
+    # receive starting message
+    message = TCPclient.recv(1048)
+    if (message == b''):  # close connection
+        log("closing connection with %s/%s..." % (addr, port))
+        TCPclient.close()
+    else:
+        print(message.decode('utf8'))
+        TCPclient.close()
+
