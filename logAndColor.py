@@ -9,6 +9,9 @@ def err(st):
     if DEBUG:
         print(bcolors.RED + st + bcolors.WHITE)
 
+def name(st):
+    return st
+
 class bcolors:
     RED = '\u001b[31m'
     GREEN = '\u001b[32m'

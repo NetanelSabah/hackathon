@@ -13,8 +13,14 @@ MAGIC_COOKIE = 0xfeedbeef #UDP header cookie
 TYPE = 0x2 # UDP messagetype
 
 threads = [] # TCP client threads pool
-player_sockets = {} # player sockets pool (dictionary of format name:(socket, status))
+player_sockets = {} # player sockets pool (dictionary of format name:{socket : <value>, thread : <value>, status : <value>})
+player_sockets_grouping_list = []
 player_sockets_lock = threading.Lock()
+
+group1 = []
+group2 = []
+
+message = ''
 
 class UDPBroadcast(threading.Thread):
 
@@ -57,7 +63,7 @@ class ClientThread(threading.Thread):
             if (result_length > 0 and result[result_length-1] == '\n'): # check if it's a name
                 name = result[:result_length-1]
                 log("player added to pool: %s"%name)
-                player_sockets[name] = (connectionSocket, True) 
+                player_sockets[name] = {'name':connectionSocket, 'thread': threading.get_ident() , 'status':True}
             else:
                 print("got an invalid connection message (does not end with newline), closing connection.")
         except Exception as e:
@@ -67,13 +73,8 @@ class ClientThread(threading.Thread):
 
         log("closing connection with %s/%s..." %(ip, port))
         if (player_sockets.get(name) != None):
-            (conn, status) = player_sockets[name]
-            status = False
+            player_sockets[name]['status'] = False
         connectionSocket.close()
-
-
-
-
 
 
 try:
@@ -105,21 +106,23 @@ except Exception as e:
     err("Error: "+str(e))
 log("Finished listening, game start...")
 
-#shuffling the clients randomly
+# shuffling the clients randomly
 
-player_sockets_list = list(player_sockets.items())
-player_sockets_list.shuffle(1)
-player_sockets = dict(player_sockets_list)
+player_sockets_grouping_list = list(player_sockets.items())
+player_sockets_grouping_list.shuffle(1)
+
+# now, the teams will be assigned in the following order: even - group 1, odd - group 2
+group1 = player_sockets_grouping_list[::2]
+group2 = player_sockets_grouping_list[1::2]
+
 log("shuffled teams...")
 
-#now, the teams will be assigned in the following order: even - group 1, odd - group 2
-
-message =
-
+# set message to start
+message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % ('\n'.join(group1), '\n'.join(group2)) # the start message
+# wake client threads
 threading.notify_all()
 
 
 for t in threads:
-    threads[t].join()
+    t.join()
 UDP_thread.join()
-      
