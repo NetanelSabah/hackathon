@@ -60,7 +60,7 @@ class ClientThread(threading.Thread):
         self.client_ip = client_ip
         self.client_port = client_port
         self.client_socket = client_socket
-        self.name = ''
+        self.client_name = ''
         log("New server socket thread started for " + self.client_ip + ":" + str(self.client_port))
 
     def run(self):
@@ -86,22 +86,22 @@ class ClientThread(threading.Thread):
             # wait until game start
             start_game_event.wait()
 
-            while (not message_lock.acquire()):
-                start_game_event.wait()
-            acquired = True # lock has been acquired, used to release it incase of failure of sending the following file
+            #while (not message_lock.acquire()):
+            #    start_game_event.wait()
+            #acquired = True # lock has been acquired, used to release it incase of failure of sending the following file
 
             self.client_socket.send(bytes(message, 'utf-8'))
-            log("sent game start message %s to %s/%s" % (message[:15], self.client_ip, self.client_port))
+            log("sent game start message (\"%s...\") to %s/%s" % (message[:25], self.client_ip, self.client_port))
 
-            message_lock.release()
-            start_game_event.set()
+            #message_lock.release()
+            #start_game_event.set()
 
         except Exception as e:
             print("Client socket %s/%s failed." %(self.client_ip, self.client_port))
             err("Error: "+str(e))
-            if (acquired):
-                message_lock.release()
-                start_game_event.set()
+            #if (acquired):
+            #    message_lock.release()
+            #    start_game_event.set()
         log("closing connection with %s/%s..." %(self.client_ip, self.client_port))
         if (player_sockets.get(name) != None):
             player_sockets[name]['status'] = False
