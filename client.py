@@ -1,10 +1,12 @@
 import socket
 import struct
+import random
 from logAndColor import *
 
 import time
 
 GROUP_NAME = "Hashawalilim"
+MUL_CLIENT_TEST = True # for debugging multiple clients
 UDP_PORT = 13117
 MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
@@ -44,17 +46,19 @@ while True:
         TCPclient.connect((addr, port))
 
         # send first message (name)
-        TCPclient.send(bytes(GROUP_NAME+"\n", 'utf-8'))
+        message = GROUP_NAME
+        if (MUL_CLIENT_TEST):
+            message += "_" + str(random.randint(0, 1000))
+        TCPclient.send(bytes(message+"\n", 'utf-8'))
     except Exception as e:
         print("Couldn't connect via TCP to server at %s/%s."%(addr,port))
         err("ERROR: "+ str(e))
 
     # receive starting message
     message = TCPclient.recv(1048)
-    if (message == b''):  # close connection
-        log("closing connection with %s/%s..." % (addr, port))
-        TCPclient.close()
-    else:
-        print(message.decode('utf8'))
-        TCPclient.close()
+    print(message.decode('utf8'))
+    log("closing connection with %s/%s..." % (addr, port))
+    TCPclient.close()
 
+    #if (message == b''):  # close connection
+    #    log("closing connection with %s/%s..." % (addr, port))

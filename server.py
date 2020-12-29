@@ -17,13 +17,15 @@ threads = [] # TCP client threads pool
 player_sockets = {} # player sockets pool (dictionary of format name:{socket : <value>, thread : <value>, status : <value>})
 player_sockets_grouping_list = []
 player_sockets_lock = threading.Lock()
-start_event = threading.Event()
+start_game_event = threading.Event()
+message_lock = threading.Lock()
 
 group1 = []
 group2 = []
 
 message = ''
 
+# UDP thread
 class UDPBroadcast(threading.Thread):
 
     def __init__(self):
@@ -49,43 +51,61 @@ class UDPBroadcast(threading.Thread):
             print("Failed to broadcast messages via UDP.\nERROR: "+str(e))
         log("UDP end")
 
+
+
+# client thread
 class ClientThread(threading.Thread):
-    def __init__(self, ip, port): 
+    def __init__(self, client_ip, client_port, client_socket):
         threading.Thread.__init__(self)
-        self.ip = ip 
-        self.port = port
+        self.client_ip = client_ip
+        self.client_port = client_port
+        self.client_socket = client_socket
         self.name = ''
-        log("New server socket thread started for " + ip + ":" + str(port))
+        log("New server socket thread started for " + self.client_ip + ":" + str(self.client_port))
 
     def run(self):
+        acquired = False
         try:
-            data = connectionSocket.recv(1048)
+            data = self.client_socket.recv(1048)
             result = data.decode('utf8')
             result_length = len(result)
             if (result_length > 0 and result[-1] == '\n'): # check if it's a name
                 name = result[:-1]
                 if (player_sockets.get(name) == None):
                     log("player added to pool: %s" % name)
-                    player_sockets[name] = {'name' : connectionSocket, 'thread': threading.get_ident(), 'status' : True}
+                    player_sockets[name] = {'connection' : self.client_socket, 'thread': threading.get_ident(), 'status' : True}
                 else:
                     print("group with that name already exists, closing connection.")
-                    connectionSocket.close()
+                    self.client_socket.close()
                     return
             else:
                 print("got an invalid connection message (does not end with newline), closing connection.")
-                connectionSocket.close()
+                self.client_socket.close()
                 return
+
+            # wait until game start
+            start_game_event.wait()
+
+            while (not message_lock.acquire()):
+                start_game_event.wait()
+            acquired = True # lock has been acquired, used to release it incase of failure of sending the following file
+
+            self.client_socket.send(bytes(message, 'utf-8'))
+            log("sent game start message %s to %s/%s" % (message[:15], self.client_ip, self.client_port))
+
+            message_lock.release()
+            start_game_event.set()
+
         except Exception as e:
-            print("Client socket %s/%s failed." %(ip, port))
+            print("Client socket %s/%s failed." %(self.client_ip, self.client_port))
             err("Error: "+str(e))
-        start_event.wait()
-
-        connectionSocket.send(bytes(message, 'utf-8'))
-
-        log("closing connection with %s/%s..." %(ip, port))
+            if (acquired):
+                message_lock.release()
+                start_game_event.set()
+        log("closing connection with %s/%s..." %(self.client_ip, self.client_port))
         if (player_sockets.get(name) != None):
             player_sockets[name]['status'] = False
-        connectionSocket.close()
+        self.client_socket.close()
 
 
 try:
@@ -106,7 +126,7 @@ try:
     while remainingTime>0: 
         server.settimeout(remainingTime) # the timeout will be the remaining time
         (connectionSocket, (ip, port)) = server.accept()
-        new_thread = ClientThread(ip, port)
+        new_thread = ClientThread(ip, port, connectionSocket)
         new_thread.start()
         threads.append(new_thread)
         remainingTime = WAITING_FOR_CLIENT_COUNT-(time.time()-initTime) #set the remaining time to the server (essentially 10 - time elapsed since start)
@@ -131,7 +151,7 @@ log("shuffled teams...")
 # set message to start
 message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % ('\n'.join(group1), '\n'.join(group2)) # the start message
 # wake client threads
-threading.Thread.notify_all()
+start_game_event.set() # wake all client threads to make them send the message
 
 
 for t in threads:
