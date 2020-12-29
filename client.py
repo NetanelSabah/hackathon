@@ -38,11 +38,13 @@ while True:
         except Exception as e:
             print("Received incoming message, but couldn't decode the data")
             err("ERROR: " + str(e))
+            continue
     
     # connecting to a server
     try:
         # setting up TCP socket
-        TCPclient = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+        TCPclient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        TCPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) #allow multiple clients (important)
         TCPclient.connect((addr, port))
 
         # send first message (name)
@@ -50,13 +52,17 @@ while True:
         if (MUL_CLIENT_TEST):
             message += "_" + str(random.randint(0, 1000))
         TCPclient.send(bytes(message+"\n", 'utf-8'))
+
+        # receive starting message from server
+        message = TCPclient.recv(1048)
+        print(message.decode('utf8'))
     except Exception as e:
         print("Couldn't connect via TCP to server at %s/%s."%(addr,port))
-        err("ERROR: "+ str(e))
+        err("ERROR: " + str(e))
+        continue
 
-    # receive starting message
-    message = TCPclient.recv(1048)
-    print(message.decode('utf8'))
+
+
     log("closing connection with %s/%s..." % (addr, port))
     TCPclient.close()
 

@@ -18,7 +18,9 @@ player_sockets = {} # player sockets pool (dictionary of format name:{socket : <
 player_sockets_grouping_list = []
 player_sockets_lock = threading.Lock()
 start_game_event = threading.Event()
-message_lock = threading.Lock()
+
+counter = 0
+counter_lock = threading.Lock()
 
 group1 = []
 group2 = []
@@ -64,7 +66,6 @@ class ClientThread(threading.Thread):
         log("New server socket thread started for " + self.client_ip + ":" + str(self.client_port))
 
     def run(self):
-        acquired = False
         try:
             data = self.client_socket.recv(1048)
             result = data.decode('utf8')
@@ -86,22 +87,14 @@ class ClientThread(threading.Thread):
             # wait until game start
             start_game_event.wait()
 
-            #while (not message_lock.acquire()):
-            #    start_game_event.wait()
-            #acquired = True # lock has been acquired, used to release it incase of failure of sending the following file
-
+            # send 1st message
             self.client_socket.send(bytes(message, 'utf-8'))
             log("sent game start message (\"%s...\") to %s/%s" % (message[:25], self.client_ip, self.client_port))
 
-            #message_lock.release()
-            #start_game_event.set()
 
         except Exception as e:
             print("Client socket %s/%s failed." %(self.client_ip, self.client_port))
             err("Error: "+str(e))
-            #if (acquired):
-            #    message_lock.release()
-            #    start_game_event.set()
         log("closing connection with %s/%s..." %(self.client_ip, self.client_port))
         if (player_sockets.get(name) != None):
             player_sockets[name]['status'] = False
@@ -112,6 +105,7 @@ try:
     #TCP server socket setup
     TCP_server_IP = socket.gethostbyname(socket.gethostname()) #get the IP for printing the message
     server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) #allow multiple clients (important)
     server.bind(('', SERVER_TCP_PORT))
     server.listen(1)
     print("Server started, listening on IP address %s for %s seconds"%(TCP_server_IP,WAITING_FOR_CLIENT_COUNT))
@@ -122,7 +116,7 @@ try:
     
     # accept users in TCP
     initTime = time.time()
-    remainingTime = WAITING_FOR_CLIENT_COUNT + WAITING_FOR_CLIENT_EXTRA # initial remaining time, plus time to catch last requests from UDP broadcasts
+    remainingTime = WAITING_FOR_CLIENT_COUNT # initial remaining time
     while remainingTime>0: 
         server.settimeout(remainingTime) # the timeout will be the remaining time
         (connectionSocket, (ip, port)) = server.accept()
@@ -131,7 +125,7 @@ try:
         threads.append(new_thread)
         remainingTime = WAITING_FOR_CLIENT_COUNT-(time.time()-initTime) #set the remaining time to the server (essentially 10 - time elapsed since start)
 except socket.timeout:
-    pass # timeouts are OK.
+    UDP_thread.join() # timeouts are OK. Wait for UDP to finish
 except Exception as e:
     print("TCP server socket failed.")
     err("Error: "+str(e))
@@ -149,11 +143,10 @@ group2 = player_sockets_grouping_list[1::2]
 log("shuffled teams...")
 
 # set message to start
-message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % ('\n'.join(group1), '\n'.join(group2)) # the start message
+message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % ('\n'.join(map(colorName, group1)), '\n'.join(map(colorName, group2))) # the start message
 # wake client threads
 start_game_event.set() # wake all client threads to make them send the message
 
 
 for t in threads:
     t.join()
-UDP_thread.join()
