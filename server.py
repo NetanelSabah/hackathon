@@ -7,9 +7,10 @@ from logAndColor import *
 
 SERVER_UDP_PORT = 13117
 SERVER_TCP_PORT = 5997
-WAITING_FOR_CLIENT_COUNT = 15 # total time for the "waiting for client" mode
+WAITING_FOR_CLIENT_COUNT = 5 # total time for the "waiting for client" mode
 # WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
 GAME_MODE_COUNT = 10  # total time for the game mode
+CYCLE_WAIT = 20
 UDP_TIMEOUT = 0.2  # timeout for UDP server
 MAGIC_COOKIE = 0xfeedbeef  # UDP header cookie
 TYPE = 0x2 # UDP messagetype
@@ -75,6 +76,7 @@ class ClientThread(threading.Thread):
                 name = result[:-1]
                 if player_sockets.get(name) == None:
                     log("player added to pool: %s" % name)
+                    self.client_name = name
                     player_sockets[name] = {'connection' : self.client_socket, 'thread': threading.get_ident(), 'status' : True}
                 else:
                     log("group with the given name (%s) already exists, closing connection.")
@@ -94,17 +96,29 @@ class ClientThread(threading.Thread):
             self.client_socket.send(bytes(message, 'utf-8'))
             log("sent game start message (\"%s...\") to %s/%s" % (message[:25], self.client_ip, self.client_port))
 
-            while not game_end_flag:
-                client_data = self.client_socket.recv(1024)
-                val = len(client_data)
-                self.client_counter += val
-                counters_lock.acquire()  # making sure the group counter is synchronized
-                counters[self.client_group] += val
-                counters_lock.release()
+
+            # like waiting for clients, we need to have a timeout on recv incase that the game time is over
+            init_game_time = time.time()
+            game_time_remaining = GAME_MODE_COUNT
+            try:
+                while game_time_remaining>0:
+                    self.client_socket.settimeout(game_time_remaining)
+                    client_data = self.client_socket.recv(1024)
+                    val = len(client_data)
+                    self.client_counter += val
+                    counters_lock.acquire()  # making sure the group counter is synchronized
+                    counters[self.client_group] += val
+                    log("%s has updated group %s's counter: %s" % (self.client_name, self.client_group+1, counters[self.client_group]))
+                    counters_lock.release()
+                    game_time_remaining = GAME_MODE_COUNT - (time.time() - init_game_time)
+            except socket.timeout:
+                pass
 
             # game over, wait until the results are calculated by the server.
+            result_event.wait()
 
-
+            self.client_socket.send(bytes(message, 'utf-8'))
+            log("sent game end message (\"%s...\") to %s/%s" % (message[:25], self.client_ip, self.client_port))
 
         except Exception as e:
             print("Client socket %s/%s failed." %(self.client_ip, self.client_port))
@@ -115,10 +129,10 @@ class ClientThread(threading.Thread):
         self.client_socket.close()
 
 while True:
-    threads = [] # reset
-    player_sockets = {} # player sockets pool for current game, reset
+    threads = []  # reset
+    player_sockets = {}  # player sockets pool for current game, reset
     game_end_flag = False  # new game, reset
-    counters = [0, 0] # reset
+    counters = [0, 0]  # reset
 
     try:
         # TCP server socket setup
@@ -136,7 +150,7 @@ while True:
         # accept users in TCP
         initTime = time.time()
         remainingTime = WAITING_FOR_CLIENT_COUNT  # initial remaining time
-        while remainingTime>0:
+        while remainingTime > 0:
             server.settimeout(remainingTime)  # the timeout will be the remaining time
             (connectionSocket, (ip, port)) = server.accept()
             new_thread = ClientThread(ip, port, connectionSocket)
@@ -186,8 +200,11 @@ while True:
     message = dryRes + victory
 
     result_event.set() # notify the threads to post the results
-
-    server.close()  # now, we can kill the server and restart and kill themselves
+    log("sending results...")
 
     for t in threads:  # waiting for the last client threads to end
         t.join()
+
+    server.close()  # now, we can kill the server and restart and kill themselves
+    log("closing the server and re-opening it...")
+    time.sleep(CYCLE_WAIT)

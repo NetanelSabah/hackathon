@@ -19,12 +19,14 @@ def nonBlockingReceive(sock, size): # will return data if received it, but will 
     try:
         data = sock.recv(size)
         return data
-    except (socket.error, e):
+    except socket.error as e:
         error_type = e.args[0]
         if (error_type == errno.EAGAIN or error_type == errno.EWOULDBLOCK):
             return None
         else:
-            raise (socket.error, e)
+            raise socket.error
+    except Exception as e:
+        raise e
 
 # def nonBlockingInput
 
@@ -40,7 +42,7 @@ while True:
         err("ERROR: " + str(e))
         break
 
-    key_debug_count = random.randint(0, 100)
+    key_debug_count = random.randint(0, 10)
 
     #looking for a server
     print("Client started, listening for offer requests...")
