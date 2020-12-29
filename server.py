@@ -63,7 +63,8 @@ class ClientThread(threading.Thread):
         except Exception as e:
             print("Client socket %s/%s failed." %(ip, port))
             err("Error: "+str(e))
-        time.sleep(15)
+        threading.wait()
+
         log("closing connection with %s/%s..." %(ip, port))
         if (player_sockets.get(name) != None):
             (conn, status) = player_sockets[name]
@@ -102,7 +103,20 @@ except socket.timeout:
 except Exception as e:
     print("TCP server socket failed.")
     err("Error: "+str(e))
-print("Finished listening, game start...")
+log("Finished listening, game start...")
+
+#shuffling the clients randomly
+
+player_sockets_list = list(player_sockets.items())
+player_sockets_list.shuffle(1)
+player_sockets = dict(player_sockets_list)
+log("shuffled teams...")
+
+#now, the teams will be assigned in the following order: even - group 1, odd - group 2
+
+message =
+
+threading.notify_all()
 
 
 for t in threads:
