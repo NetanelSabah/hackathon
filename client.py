@@ -1,5 +1,7 @@
 import socket
 import struct
+import errno
+
 import random
 from logAndColor import *
 
@@ -13,14 +15,36 @@ TYPE = 0x2
 
 message = ''
 
+def nonBlockingReceive(sock, size): # will return data if received it, but will return None otherwise
+    try:
+        data = sock.recv(size)
+        return data
+    except (socket.error, e):
+        error_type = e.args[0]
+        if (error_type == errno.EAGAIN or error_type == errno.EWOULDBLOCK):
+            return None
+        else:
+            raise (socket.error, e)
+
+# def nonBlockingInput
+
+
 while True:
-    #UDP connection setup
-    UDPclient = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) #set up UDP
-    UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) #allow multiple clients (important)
-    UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1) #broadcast
+    try:
+        # UDP connection setup
+        UDPclient = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # set up UDP
+        UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
+        UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # broadcast
+    except Exception as e:
+        print("couldn't connect to UDP connection, shutting down...")
+        err("ERROR: " + str(e))
+        break
+
+    key_debug_count = random.randint(0, 100)
 
     #looking for a server
     print("Client started, listening for offer requests...")
+    log("key debug count is %s" % (key_debug_count))
     serverLookup = True
     UDPclient.bind(("", UDP_PORT))
     while serverLookup:
@@ -62,6 +86,22 @@ while True:
         continue
 
 
+    #game mode
+    try:
+        TCPclient.setblocking(0)  # set to non-blocking
+        message = nonBlockingReceive(TCPclient, 1024)
+        while message == None:
+            if key_debug_count > 0:
+                TCPclient.send(bytes('h', 'utf8'))
+                key_debug_count -= 1
+            time.sleep(0.001)
+            message = nonBlockingReceive(TCPclient, 1024)
+        print(message.decode('utf8'))
+
+    except Exception as e:
+        print("Encountered a problem via TCP connection to server at %s/%s." % (addr, port))
+        err("ERROR: " + str(e))
+        continue
 
     log("closing connection with %s/%s..." % (addr, port))
     TCPclient.close()
