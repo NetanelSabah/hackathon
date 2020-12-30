@@ -17,6 +17,7 @@ MUL_CLIENT_TEST = True # for debugging multiple clients
 UDP_PORT = 13118
 MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
+CYCLE_WAIT = 2  # num of seconds to wait before restarting the
 
 message = ''
 
@@ -104,6 +105,11 @@ while True:
         # receive starting message from server
         message = TCPclient.recv(1048)
         print(message.decode('utf8'))
+        if message == b'':
+            print("Connection with server lost.")
+            log("closing connection with %s/%s..." % (addr, port))
+            TCPclient.close()
+            continue
     except Exception as e:
         print("Couldn't connect via TCP to server at %s/%s."%(addr,port))
         err("ERROR: " + str(e))
@@ -122,7 +128,10 @@ while True:
             message = nonBlockingReceive(TCPclient, 1024)
             time.sleep(0.001)
         nbi.toggleOff()
-        print(message.decode('utf8'))
+        if message == b'':
+            print("Connection with server lost.")
+        else:
+            print(message.decode('utf8'))
 
     except Exception as e:
         print("Encountered a problem via TCP connection to server at %s/%s." % (addr, port))

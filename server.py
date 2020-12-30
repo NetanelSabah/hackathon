@@ -7,13 +7,17 @@ from logAndColor import *
 
 SERVER_UDP_PORT = 13118
 SERVER_TCP_PORT = 5997
-WAITING_FOR_CLIENT_COUNT = 5 # total time for the "waiting for client" mode
+
+WAITING_FOR_CLIENT_COUNT = 10 # total time for the "waiting for client" mode
 # WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
 GAME_MODE_COUNT = 10  # total time for the game mode
 CYCLE_WAIT = 20
 UDP_TIMEOUT = 0.2  # timeout for UDP server
+CALC_WAIT = 0.02  # allows for calculation of the high score for the various client threads
+
 MAGIC_COOKIE = 0xfeedbeef  # UDP header cookie
-TYPE = 0x2 # UDP messagetype
+TYPE = 0x2  # UDP messagetype
+PACKET_FORMAT = 'IBH'  # the format for the UDP broadcast messages
 
 player_sockets = {}  # player sockets pool (dictionary of format name:{socket : <val>, thread : <val>, status : <val>})
 threads = []  # TCP client threads pool
@@ -28,7 +32,13 @@ counters_lock = threading.Lock()
 group1 = []
 group2 = []
 
-message = ''
+start_message = ''
+end_message = ''
+
+high_score_group = {'name': 'N/A', 'score': 0} 
+overall_high_score_player = {'name': 'N/A', 'score': 0}  # for the server's history
+current_high_score_player = {'name': 'N/A', 'score': 0}  # for current game
+high_score_player_lock = threading.Lock()
 
 # UDP thread
 class UDPBroadcast(threading.Thread):
@@ -93,8 +103,8 @@ class ClientThread(threading.Thread):
             # can check only after group game starts, because that's when the teams are sorted
             self.client_group = self.client_name in group2  # 1 if true (group 2), 0 if false (group 1).
             # send 1st message
-            self.client_socket.send(bytes(message, 'utf-8'))
-            log("sent game start message (\"%s...\") to %s/%s" % (message[:25], self.client_ip, self.client_port))
+            self.client_socket.send(bytes(start_message, 'utf-8'))
+            log("sent game start message (\"%s...\") to %s/%s" % (start_message[:25], self.client_ip, self.client_port))
 
 
             # like waiting for clients, we need to have a timeout on recv incase that the game time is over
@@ -110,17 +120,35 @@ class ClientThread(threading.Thread):
                     self.client_counter += val
                     counters_lock.acquire()  # making sure the group counter is synchronized
                     counters[self.client_group] += val
-                    log("%s has updated group %s's counter: %s" % (self.client_name, self.client_group+1, counters[self.client_group]))
+                    lowLog("%s has updated group %s's counter: %s" % (self.client_name, self.client_group+1, counters[self.client_group]))
                     counters_lock.release()
                     game_time_remaining = GAME_MODE_COUNT - (time.time() - init_game_time)
             except socket.timeout:
                 pass
 
-            # game over, wait until the results are calculated by the server.
+            # game over, update the player high-score (if necessary) 
+            high_score_player_lock.acquire()
+            #all-time high score
+            if self.client_counter > overall_high_score_player['score'] or overall_high_score_player['name'] == 'N/A':
+                overall_high_score_player['name'] = colorName(self.client_name)
+                overall_high_score_player['score'] = self.client_counter
+            else:
+                if self.client_counter == overall_high_score_player['score']:
+                    overall_high_score_player['name']+= '\n' + colorName(self.client_name)
+            # current high score
+            if self.client_counter > current_high_score_player['score'] or current_high_score_player['name'] == 'N/A':
+                current_high_score_player['name'] = colorName(self.client_name)
+                current_high_score_player['score'] = self.client_counter
+            else:
+                if self.client_counter == current_high_score_player['score']:
+                    current_high_score_player['name']+= '\n' + colorName(self.client_name)
+            high_score_player_lock.release()
+
+            # wait for the ending message to be computed
             result_event.wait()
 
-            self.client_socket.send(bytes(message, 'utf-8'))
-            log("sent game end message (\"%s...\") to %s/%s" % (message[:25], self.client_ip, self.client_port))
+            self.client_socket.send(bytes(end_message, 'utf-8'))
+            log("sent game end message (\"%s...\") to %s/%s" % (end_message[:25], self.client_ip, self.client_port))
 
         except Exception as e:
             print("Client socket %s/%s failed." %(self.client_ip, self.client_port))
@@ -130,11 +158,16 @@ class ClientThread(threading.Thread):
             player_sockets[name]['status'] = False
         self.client_socket.close()
 
+
+# main thread: TCP server & game control on a loop
 while True:
+    # reset values for new game
     threads = []  # reset
     player_sockets = {}  # player sockets pool for current game, reset
     game_end_flag = False  # new game, reset
     counters = [0, 0]  # reset
+    current_high_score_player['name'] = 'N/A'
+    current_high_score_player['score'] = 0
 
     try:
         # TCP server socket setup
@@ -181,7 +214,7 @@ while True:
     log("shuffled teams...")
 
     # set message to start
-    message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % (groups[0], groups[1]) # the start message
+    start_message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % (groups[0], groups[1]) # the start message
 
     start_game_event.set()  # wake all client threads to make them send the message
 
@@ -199,10 +232,22 @@ while True:
         winning_group = int(group2>group1) # 1 if group 2, 0 if group 1
         victory = "Group %s wins!\nCongratulations to the winners:\n==\n%s\n" % (winning_group+1, groups[winning_group])
 
-    message = dryRes + victory
+    time.sleep(CALC_WAIT)  # wait a moment for the various threads to calculate the highest player score
+    if high_score_group['score'] < counters[winning_group] or high_score_group['name'] == 'N/A':
+        high_score_group['name'] = "==\n"+groups[winning_group] + "\n"
+        high_score_group['score'] = counters[winning_group]
+    else:
+        if counters[winning_group] == high_score_group['score']:
+            high_score_group['name'] += "==\n"+groups[winning_group] + "\n"
+    msg_curr_high_score = "\nWith a score of %s each, the highest-scoring players of the game are:\n%s\n" % (current_high_score_player['score'], current_high_score_player['name'])
+    msg_overall_high_score = "With a score of %s each, the highest-scoring players of the server are:\n%s\n" % (overall_high_score_player['score'], overall_high_score_player['name'])
+    msg_group_high_score = "With a score of %s each, the highest-scoring groups of the server are:\n%s\n" % (high_score_group['score'], high_score_group['name'])
+
 
     result_event.set() # notify the threads to post the results
     log("sending results...")
+
+    end_message = dryRes + victory + msg_curr_high_score+ msg_overall_high_score + msg_group_high_score
 
     for t in threads:  # waiting for the last client threads to end
         t.join()
