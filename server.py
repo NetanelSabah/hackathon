@@ -5,7 +5,7 @@ import struct
 import random
 from logAndColor import *
 
-SERVER_UDP_PORT = 13124
+SERVER_UDP_PORT = 13117
 SERVER_TCP_PORT = 0
 
 WAITING_FOR_CLIENT_COUNT = 10 # total time for the "waiting for client" mode

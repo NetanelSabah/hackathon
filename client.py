@@ -14,7 +14,7 @@ import time
 
 GROUP_NAME = "Hashawalilim"
 MUL_CLIENT_TEST = False # for debugging multiple clients
-UDP_PORT = 13124
+UDP_PORT = 13117
 MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
 CYCLE_WAIT = 2  # num of seconds to wait before restarting the
