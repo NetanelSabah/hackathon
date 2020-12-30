@@ -62,93 +62,93 @@ class nonBlockingInput():
         else:
             return None
 
-nbi = nonBlockingInput()  # will be used during the game to get characters
+def main():
+    nbi = nonBlockingInput()  # will be used during the game to get characters
 
-while True:
-    try:
-        # UDP connection setup
-        UDPclient = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # set up UDP
-        UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
-        UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # broadcast
-        UDPclient.bind(('', UDP_PORT))
-    except Exception as e:
-        print("couldn't connect to UDP connection, shutting down...")
-        err("ERROR: " + str(e))
-        break
-
-    #looking for a server
-    print("Client started at IP %s, listening for offer requests..." % IP_ADDRESS)
-    serverLookup = True
-    while serverLookup:
-        data, (addr, port) = UDPclient.recvfrom(1024)
-        log("received data %s from IP %s."%(data,addr))
+    while True:
         try:
-            (cookie,typ,port) = struct.unpack('!IbH', data)
-            if (cookie == MAGIC_COOKIE and typ == TYPE):
-                UDPclient.close()
-                log("UDP end")
-                print("Received offer from %s, attempting to connect..."%addr)
-                serverLookup = False
-            else:
-                print("Received incoming message, but it was not a proper UDP server message (wrong cookie/type).")
+            # UDP connection setup
+            UDPclient = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # set up UDP
+            UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
+            UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # broadcast
+            UDPclient.bind(('', UDP_PORT))
         except Exception as e:
-            print("Received incoming message, but couldn't decode the data")
+            print("couldn't connect to UDP connection, shutting down...")
             err("ERROR: " + str(e))
-            continue
-    
-    # connecting to a server
-    try:
-        # setting up TCP socket
-        TCPclient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        TCPclient.connect((addr, port))
+            break
 
-        # send first message (name)
-        message = GROUP_NAME
-        TCPclient.send(bytes(message+"\n", 'utf-8'))
+        # looking for a server
+        print("Client started at IP %s, listening for offer requests..." % IP_ADDRESS)
+        serverLookup = True
+        while serverLookup:
+            data, (addr, port) = UDPclient.recvfrom(1024)
+            log("received data %s from IP %s." % (data, addr))
+            try:
+                (cookie, typ, port) = struct.unpack('!IbH', data)
+                if (cookie == MAGIC_COOKIE and typ == TYPE):
+                    UDPclient.close()
+                    log("UDP end")
+                    print("Received offer from %s, attempting to connect..." % addr)
+                    serverLookup = False
+                else:
+                    print("Received incoming message, but it was not a proper UDP server message (wrong cookie/type).")
+            except Exception as e:
+                print("Received incoming message, but couldn't decode the data")
+                err("ERROR: " + str(e))
+                continue
 
-        # receive starting message from server
-        message = TCPclient.recv(1024)
-        print(message.decode('utf8'))
-        if message == b'':
-            print("Connection with server lost.")
+        # connecting to a server
+        try:
+            # setting up TCP socket
+            TCPclient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            TCPclient.connect((addr, port))
+
+            # send first message (name)
+            message = GROUP_NAME
+            TCPclient.send(bytes(message + "\n", 'utf-8'))
+
+            # receive starting message from server
+            message = TCPclient.recv(1024)
+            print(message.decode('utf8'))
+            if message == b'':
+                print("Connection with server lost.")
+                log("closing connection with %s/%s..." % (addr, port))
+                TCPclient.close()
+                continue
+        except Exception as e:
+            print("Couldn't connect via TCP to server at %s/%s." % (addr, port))
+            err("ERROR: " + str(e))
             log("closing connection with %s/%s..." % (addr, port))
             TCPclient.close()
             continue
-    except Exception as e:
-        print("Couldn't connect via TCP to server at %s/%s."%(addr,port))
-        err("ERROR: " + str(e))
-        log("closing connection with %s/%s..." % (addr, port))
-        TCPclient.close()
-        continue
 
-
-    #game mode
-    try:
-        TCPclient.setblocking(0)  # set to non-blocking
-        message = nonBlockingReceive(TCPclient, 1024)
-        nbi.toggleOn()
-        while message == None:
-            char = nbi.nonBlockingGetch()
-            if char != None:
-                TCPclient.send(bytes(char, 'utf8'))
+        # game mode
+        try:
+            TCPclient.setblocking(0)  # set to non-blocking
             message = nonBlockingReceive(TCPclient, 1024)
-            time.sleep(0.001)
-        nbi.toggleOff()
-        if message == b'':
-            print("Connection with server lost.")
-        else:
-            print(message.decode('utf8'))
+            nbi.toggleOn()
+            while message == None:
+                char = nbi.nonBlockingGetch()
+                if char != None:
+                    TCPclient.send(bytes(char, 'utf8'))
+                message = nonBlockingReceive(TCPclient, 1024)
+                time.sleep(0.001)
+            nbi.toggleOff()
+            if message == b'':
+                print("Connection with server lost.")
+            else:
+                print(message.decode('utf8'))
 
-    except Exception as e:
-        print("Encountered a problem via TCP connection to server at %s/%s." % (addr, port))
-        err("ERROR: " + str(e))
-        nbi.toggleOff()
+        except Exception as e:
+            print("Encountered a problem via TCP connection to server at %s/%s." % (addr, port))
+            err("ERROR: " + str(e))
+            nbi.toggleOff()
+            log("closing connection with %s/%s..." % (addr, port))
+            TCPclient.close()
+            continue
+
         log("closing connection with %s/%s..." % (addr, port))
         TCPclient.close()
-        continue
 
-    log("closing connection with %s/%s..." % (addr, port))
-    TCPclient.close()
-
-    #if (message == b''):  # close connection
-    #    log("closing connection with %s/%s..." % (addr, port))
+if __name__ == "__main__":
+    main()
