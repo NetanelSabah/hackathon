@@ -97,7 +97,6 @@ while True:
     try:
         # setting up TCP socket
         TCPclient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        TCPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) #allow multiple clients (important)
         TCPclient.connect((addr, port))
 
         # send first message (name)

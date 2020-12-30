@@ -181,9 +181,8 @@ while True:
         # TCP server socket setup
         TCP_server_IP = socket.gethostbyname(socket.gethostname())  # get the IP for printing the message
         server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
         server.bind(('', 0))
-        (addr, SERVER_TCP_PORT) = server.getsockname()
+        (TCP_addr, SERVER_TCP_PORT) = server.getsockname()
         server.listen(1)
         print("Server started, listening on IP address %s in port %s for %s seconds" % (TCP_server_IP, SERVER_TCP_PORT, WAITING_FOR_CLIENT_COUNT))
 
