@@ -42,6 +42,7 @@ class nonBlockingInput():
     def toggleOn(self):
         self.toggle = True
         tty.setcbreak(sys.stdin.fileno())
+        termios.tcflush()
 
     def toggleOff(self):
         self.toggle = False

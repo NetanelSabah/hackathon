@@ -59,7 +59,7 @@ class UDPBroadcast(threading.Thread):
             UDP_message = struct.pack('IBH', MAGIC_COOKIE, TYPE, SERVER_TCP_PORT)  # encode cookie, type and TCP port
             for i in range(WAITING_FOR_CLIENT_COUNT):  # repeat 10 times
                 UDP_server.sendto(UDP_message, ('<broadcast>', SERVER_UDP_PORT))
-                log("%s) message sent!"%i)
+                lowLog("%s) message sent!"%i)
                 time.sleep(1) # wait a second between every broadcast
         except Exception as e:
             print("Failed to broadcast messages via UDP.\nERROR: "+str(e))
@@ -168,6 +168,7 @@ while True:
     counters = [0, 0]  # reset
     current_high_score_player['name'] = 'N/A'
     current_high_score_player['score'] = 0
+    winning_group = -1 # -1 means draw, 0 means group 1 and 1 means group 2
 
     try:
         # TCP server socket setup
@@ -199,7 +200,7 @@ while True:
         print("TCP server socket failed, shutting down...")
         err("Error: "+str(e))
         break
-    log("Finished listening, game start...")
+    log("Finished listening...")
 
     # shuffling the clients randomly
 
@@ -212,6 +213,7 @@ while True:
     groups = ['\n'.join(map(colorName, group1)), '\n'.join(map(colorName, group2))]
 
     log("shuffled teams...")
+    print("starting game and sending messages to clients")
 
     # set message to start
     start_message = "Welcome to Keyboard Spamming Battle Royale.\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\nStart pressing keys on your keyboard as fast as you can!!" % (groups[0], groups[1]) # the start message
@@ -229,25 +231,32 @@ while True:
     if group1_count == group2_count:
         victory = "The game ended in a draw!\nCongratulations to both teams!\nGroup 1:\n==\n%s\nGroup 2:\n==\n%s\n" % (groups[0], groups[1])
     else:
-        winning_group = int(group2>group1) # 1 if group 2, 0 if group 1
+        winning_group = int(group2_count>group1_count) # 1 if group 2, 0 if group 1
         victory = "Group %s wins!\nCongratulations to the winners:\n==\n%s\n" % (winning_group+1, groups[winning_group])
 
     time.sleep(CALC_WAIT)  # wait a moment for the various threads to calculate the highest player score
-    if high_score_group['score'] < counters[winning_group] or high_score_group['name'] == 'N/A':
-        high_score_group['name'] = "==\n"+groups[winning_group] + "\n"
-        high_score_group['score'] = counters[winning_group]
+    if (winning_group == -1):  # draw
+        if high_score_group['score'] < counters[0] or high_score_group['name'] == 'N/A':
+            high_score_group['name'] = "==\n"+ groups[0] + "\n" +"==\n"+groups[1] + "\n"
+            high_score_group['score'] = counters[0]
+        else:
+            if counters[0] == high_score_group['score']:
+                high_score_group['name'] += "==\n"+groups[0] + "\n" + "==\n"+groups[1] + "\n"
     else:
-        if counters[winning_group] == high_score_group['score']:
-            high_score_group['name'] += "==\n"+groups[winning_group] + "\n"
+        if high_score_group['score'] < counters[winning_group] or high_score_group['name'] == 'N/A':
+            high_score_group['name'] = "==\n"+groups[winning_group] + "\n"
+            high_score_group['score'] = counters[winning_group]
+        else:
+            if counters[winning_group] == high_score_group['score']:
+                high_score_group['name'] += "==\n"+groups[winning_group] + "\n"
     msg_curr_high_score = "\nWith a score of %s each, the highest-scoring players of the game are:\n%s\n" % (current_high_score_player['score'], current_high_score_player['name'])
     msg_overall_high_score = "With a score of %s each, the highest-scoring players of the server are:\n%s\n" % (overall_high_score_player['score'], overall_high_score_player['name'])
     msg_group_high_score = "With a score of %s each, the highest-scoring groups of the server are:\n%s\n" % (high_score_group['score'], high_score_group['name'])
 
+    end_message = dryRes + victory + msg_curr_high_score+ msg_overall_high_score + msg_group_high_score
 
     result_event.set() # notify the threads to post the results
-    log("sending results...")
-
-    end_message = dryRes + victory + msg_curr_high_score+ msg_overall_high_score + msg_group_high_score
+    log("sending results (\"%s...\") to players..." % (end_message[:25]))
 
     for t in threads:  # waiting for the last client threads to end
         t.join()
