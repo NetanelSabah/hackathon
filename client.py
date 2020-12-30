@@ -67,6 +67,7 @@ while True:
         UDPclient = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # set up UDP
         UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
         UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # broadcast
+        UDPclient.bind(("", UDP_PORT))
     except Exception as e:
         print("couldn't connect to UDP connection, shutting down...")
         err("ERROR: " + str(e))
@@ -75,7 +76,6 @@ while True:
     #looking for a server
     print("Client started, listening for offer requests...")
     serverLookup = True
-    UDPclient.bind(("", UDP_PORT))
     while serverLookup:
         data, (addr, port) = UDPclient.recvfrom(1024)
         log("received data %s from IP %s."%(data,addr))
