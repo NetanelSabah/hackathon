@@ -8,10 +8,10 @@ from logAndColor import *
 SERVER_UDP_PORT = 13118
 SERVER_TCP_PORT = 5997
 
-WAITING_FOR_CLIENT_COUNT = 10 # total time for the "waiting for client" mode
+WAITING_FOR_CLIENT_COUNT = 5 # total time for the "waiting for client" mode
 # WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
-GAME_MODE_COUNT = 10  # total time for the game mode
-CYCLE_WAIT = 20
+GAME_MODE_COUNT = 5  # total time for the game mode
+CYCLE_WAIT = 5
 UDP_TIMEOUT = 0.2  # timeout for UDP server
 CALC_WAIT = 0.02  # allows for calculation of the high score for the various client threads
 
@@ -39,6 +39,13 @@ high_score_group = {'name': 'N/A', 'score': 0}
 overall_high_score_player = {'name': 'N/A', 'score': 0}  # for the server's history
 current_high_score_player = {'name': 'N/A', 'score': 0}  # for current game
 high_score_player_lock = threading.Lock()
+
+def onlyActiveMembers(group): #returns the active members of a given group
+    output = []
+    for member in group:
+        if player_sockets[member]['status'] == True:
+            output.append(member)
+    return output
 
 # UDP thread
 class UDPBroadcast(threading.Thread):
@@ -162,8 +169,8 @@ class ClientThread(threading.Thread):
 # main thread: TCP server & game control on a loop
 while True:
     # reset values for new game
-    threads = []  # reset
-    player_sockets = {}  # player sockets pool for current game, reset
+    threads = []  # thread pool reset
+    player_sockets = {}  # player sockets pool for the current game reset
     game_end_flag = False  # new game, reset
     counters = [0, 0]  # reset
     current_high_score_player['name'] = 'N/A'
@@ -204,12 +211,12 @@ while True:
 
     # shuffling the clients randomly
 
-    player_sockets_grouping_list = list(player_sockets.keys())
+    player_sockets_grouping_list = onlyActiveMembers(list(player_sockets.keys()))
     random.shuffle(player_sockets_grouping_list)
 
     # now, the teams will be assigned in the following order: even - group 1, odd - group 2
-    group1 = player_sockets_grouping_list[::2]
-    group2 = player_sockets_grouping_list[1::2]
+    group1 = onlyActiveMembers(player_sockets_grouping_list[::2])
+    group2 = onlyActiveMembers(player_sockets_grouping_list[1::2])
     groups = ['\n'.join(map(colorName, group1)), '\n'.join(map(colorName, group2))]
 
     log("shuffled teams...")
@@ -256,7 +263,7 @@ while True:
     end_message = dryRes + victory + msg_curr_high_score+ msg_overall_high_score + msg_group_high_score
 
     result_event.set() # notify the threads to post the results
-    log("sending results (\"%s...\") to players..." % (end_message[:25]))
+    log("sending results (\"%s...\") to players..." % (end_message[:10]))
 
     for t in threads:  # waiting for the last client threads to end
         t.join()

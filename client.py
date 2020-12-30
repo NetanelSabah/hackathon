@@ -19,6 +19,9 @@ MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
 CYCLE_WAIT = 2  # num of seconds to wait before restarting the
 
+if (MUL_CLIENT_TEST):
+            GROUP_NAME += "_" + str(random.randint(0, 1000))
+
 message = ''
 
 def nonBlockingReceive(sock, size): # will return data if received it, but will return None otherwise
@@ -42,7 +45,7 @@ class nonBlockingInput():
     def toggleOn(self):
         self.toggle = True
         tty.setcbreak(sys.stdin.fileno())
-        termios.tcflush()
+        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
 
     def toggleOff(self):
         self.toggle = False
@@ -114,6 +117,8 @@ while True:
     except Exception as e:
         print("Couldn't connect via TCP to server at %s/%s."%(addr,port))
         err("ERROR: " + str(e))
+        log("closing connection with %s/%s..." % (addr, port))
+        TCPclient.close()
         continue
 
 
@@ -138,6 +143,8 @@ while True:
         print("Encountered a problem via TCP connection to server at %s/%s." % (addr, port))
         err("ERROR: " + str(e))
         nbi.toggleOff()
+        log("closing connection with %s/%s..." % (addr, port))
+        TCPclient.close()
         continue
 
     log("closing connection with %s/%s..." % (addr, port))

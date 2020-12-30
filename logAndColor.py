@@ -1,6 +1,6 @@
 import random
 
-DEBUG = False
+DEBUG = True
 LOW_DEBUG = DEBUG and False
 
 def log(st):
