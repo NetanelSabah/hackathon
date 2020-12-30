@@ -70,6 +70,7 @@ class UDPBroadcast(threading.Thread):
                 time.sleep(1) # wait a second between every broadcast
         except Exception as e:
             print("Failed to broadcast messages via UDP.\nERROR: "+str(e))
+        UDP_server.close()
         log("UDP end")
 
 # client thread
