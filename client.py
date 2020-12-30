@@ -1,4 +1,5 @@
 import socket
+from scapy.arch import get_if_addr
 import struct
 import errno
 
@@ -18,6 +19,8 @@ UDP_PORT = 13117
 MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
 CYCLE_WAIT = 2  # num of seconds to wait before restarting the
+
+IP_ADDRESS = get_if_addr("eth1")
 
 if (MUL_CLIENT_TEST):
             GROUP_NAME += "_" + str(random.randint(0, 1000))
@@ -67,20 +70,20 @@ while True:
         UDPclient = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # set up UDP
         UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
         UDPclient.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # broadcast
-        UDPclient.bind(("", UDP_PORT))
+        UDPclient.bind(('', UDP_PORT))
     except Exception as e:
         print("couldn't connect to UDP connection, shutting down...")
         err("ERROR: " + str(e))
         break
 
     #looking for a server
-    print("Client started, listening for offer requests...")
+    print("Client started at IP %s, listening for offer requests..." % IP_ADDRESS)
     serverLookup = True
     while serverLookup:
         data, (addr, port) = UDPclient.recvfrom(1024)
         log("received data %s from IP %s."%(data,addr))
         try:
-            (cookie,typ,port) = struct.unpack('IbH', data)
+            (cookie,typ,port) = struct.unpack('!IbH', data)
             if (cookie == MAGIC_COOKIE and typ == TYPE):
                 UDPclient.close()
                 log("UDP end")
@@ -104,7 +107,7 @@ while True:
         TCPclient.send(bytes(message+"\n", 'utf-8'))
 
         # receive starting message from server
-        message = TCPclient.recv(1048)
+        message = TCPclient.recv(1024)
         print(message.decode('utf8'))
         if message == b'':
             print("Connection with server lost.")

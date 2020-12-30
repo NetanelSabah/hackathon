@@ -1,5 +1,6 @@
 import threading
 import socket
+from scapy.arch import get_if_addr
 import time
 import struct
 import random
@@ -7,6 +8,7 @@ from logAndColor import *
 
 SERVER_UDP_PORT = 13117
 SERVER_TCP_PORT = 0
+SERVER_IP = get_if_addr('eth1')
 
 WAITING_FOR_CLIENT_COUNT = 10 # total time for the "waiting for client" mode
 # WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
@@ -63,7 +65,7 @@ class UDPBroadcast(threading.Thread):
             UDP_server.settimeout(UDP_TIMEOUT)
 
             # sending broadcast messages
-            UDP_message = struct.pack('IbH', MAGIC_COOKIE, TYPE, SERVER_TCP_PORT)  # encode cookie, type and TCP port
+            UDP_message = struct.pack('!IbH', MAGIC_COOKIE, TYPE, SERVER_TCP_PORT)  # encode cookie, type and TCP port
             for i in range(WAITING_FOR_CLIENT_COUNT):  # repeat 10 times
                 UDP_server.sendto(UDP_message, ('<broadcast>', SERVER_UDP_PORT))
                 lowLog("%s) message sent!"%i)
@@ -87,7 +89,7 @@ class ClientThread(threading.Thread):
 
     def run(self):
         try:
-            data = self.client_socket.recv(1048)
+            data = self.client_socket.recv(1024)
             result = data.decode('utf8')
             result_length = len(result)
             if result_length > 0 and result[-1] == '\n':  # check if it's a name
@@ -180,9 +182,9 @@ while True:
 
     try:
         # TCP server socket setup
-        TCP_server_IP = socket.gethostbyname(socket.gethostname())  # get the IP for printing the message
+        TCP_server_IP = SERVER_IP  # get the IP for printing the message
         server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        server.bind(('', 0))
+        server.bind((SERVER_IP, 0))
         (TCP_addr, SERVER_TCP_PORT) = server.getsockname()
         server.listen(1)
         print("Server started, listening on IP address %s in port %s for %s seconds" % (TCP_server_IP, SERVER_TCP_PORT, WAITING_FOR_CLIENT_COUNT))
