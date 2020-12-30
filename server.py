@@ -9,6 +9,7 @@ from logAndColor import *
 SERVER_UDP_PORT = 13117
 SERVER_TCP_PORT = 0
 SERVER_IP = get_if_addr('eth1')
+BROADCAST_IP = SERVER_IP[:-5]+ '.255.255'
 
 WAITING_FOR_CLIENT_COUNT = 10 # total time for the "waiting for client" mode
 # WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
@@ -61,14 +62,13 @@ class UDPBroadcast(threading.Thread):
             UDP_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # set up UDP
             UDP_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
             UDP_server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # broadcast
-            UDP_server.bind(('', SERVER_UDP_PORT))
             UDP_server.settimeout(UDP_TIMEOUT)
 
             # sending broadcast messages
             UDP_message = struct.pack('!IbH', MAGIC_COOKIE, TYPE, SERVER_TCP_PORT)  # encode cookie, type and TCP port
             for i in range(WAITING_FOR_CLIENT_COUNT):  # repeat 10 times
-                UDP_server.sendto(UDP_message, ('<broadcast>', SERVER_UDP_PORT))
-                lowLog("%s) message sent!"%i)
+                UDP_server.sendto(UDP_message, (BROADCAST_IP, SERVER_UDP_PORT))
+                lowLog("%s) message sent to IP %s!"%(i, BROADCAST_IP))
                 time.sleep(1) # wait a second between every broadcast
         except Exception as e:
             print("Failed to broadcast messages via UDP.\nERROR: "+str(e))
