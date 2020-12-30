@@ -263,7 +263,7 @@ while True:
     end_message = dryRes + victory + msg_curr_high_score+ msg_overall_high_score + msg_group_high_score
 
     result_event.set() # notify the threads to post the results
-    log("sending results (\"%s...\") to players..." % (end_message[:10]))
+    print("sending results (\"%s...\") to players..." % (end_message[:10]))
 
     for t in threads:  # waiting for the last client threads to end
         t.join()
