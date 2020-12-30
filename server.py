@@ -215,6 +215,10 @@ while True:
     # shuffling the clients randomly
 
     player_sockets_grouping_list = onlyActiveMembers(list(player_sockets.keys()))
+    if (len(player_sockets_grouping_list) == 0):
+        server.close()
+        print ("did not find any players, restarting search...")
+        continue
     random.shuffle(player_sockets_grouping_list)
 
     # now, the teams will be assigned in the following order: even - group 1, odd - group 2
