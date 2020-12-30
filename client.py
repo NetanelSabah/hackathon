@@ -2,6 +2,11 @@ import socket
 import struct
 import errno
 
+import sys
+import termios
+import tty
+import select
+
 import random
 from logAndColor import *
 
@@ -9,7 +14,7 @@ import time
 
 GROUP_NAME = "Hashawalilim"
 MUL_CLIENT_TEST = True # for debugging multiple clients
-UDP_PORT = 13117
+UDP_PORT = 13118
 MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
 
@@ -28,8 +33,28 @@ def nonBlockingReceive(sock, size): # will return data if received it, but will 
     except Exception as e:
         raise e
 
-# def nonBlockingInput
+class nonBlockingInput():
+    def __init__(self):
+        self.toggle = False # non blocking getch will only work if the toggle is true
+        self.old_config = termios.tcgetattr(sys.stdin) # save the old settings
 
+    def toggleOn(self):
+        self.toggle = True
+        tty.setcbreak(sys.stdin.fileno())
+
+    def toggleOff(self):
+        self.toggle = False
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_config)
+
+    def nonBlockingGetch(self):
+        if not self.toggle:
+            raise Exception("attempted to call non-blocking getch when the toggle is off")
+        if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+            return sys.stdin.read(1)
+        else:
+            return None
+
+nbi = nonBlockingInput()  # will be used during the game to get characters
 
 while True:
     try:
@@ -42,11 +67,8 @@ while True:
         err("ERROR: " + str(e))
         break
 
-    key_debug_count = random.randint(0, 10)
-
     #looking for a server
     print("Client started, listening for offer requests...")
-    log("key debug count is %s" % (key_debug_count))
     serverLookup = True
     UDPclient.bind(("", UDP_PORT))
     while serverLookup:
@@ -92,17 +114,20 @@ while True:
     try:
         TCPclient.setblocking(0)  # set to non-blocking
         message = nonBlockingReceive(TCPclient, 1024)
+        nbi.toggleOn()
         while message == None:
-            if key_debug_count > 0:
-                TCPclient.send(bytes('h', 'utf8'))
-                key_debug_count -= 1
-            time.sleep(0.001)
+            char = nbi.nonBlockingGetch()
+            if char != None:
+                TCPclient.send(bytes(char, 'utf8'))
             message = nonBlockingReceive(TCPclient, 1024)
+            time.sleep(0.001)
+        nbi.toggleOff()
         print(message.decode('utf8'))
 
     except Exception as e:
         print("Encountered a problem via TCP connection to server at %s/%s." % (addr, port))
         err("ERROR: " + str(e))
+        nbi.toggleOff()
         continue
 
     log("closing connection with %s/%s..." % (addr, port))

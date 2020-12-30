@@ -5,7 +5,7 @@ import struct
 import random
 from logAndColor import *
 
-SERVER_UDP_PORT = 13117
+SERVER_UDP_PORT = 13118
 SERVER_TCP_PORT = 5997
 WAITING_FOR_CLIENT_COUNT = 5 # total time for the "waiting for client" mode
 # WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
@@ -104,6 +104,8 @@ class ClientThread(threading.Thread):
                 while game_time_remaining>0:
                     self.client_socket.settimeout(game_time_remaining)
                     client_data = self.client_socket.recv(1024)
+                    if (client_data == b''):
+                        raise Exception("Connection lost")
                     val = len(client_data)
                     self.client_counter += val
                     counters_lock.acquire()  # making sure the group counter is synchronized
