@@ -13,8 +13,8 @@ from logAndColor import *
 import time
 
 GROUP_NAME = "Hashawalilim"
-MUL_CLIENT_TEST = True # for debugging multiple clients
-UDP_PORT = 13118
+MUL_CLIENT_TEST = False # for debugging multiple clients
+UDP_PORT = 13124
 MAGIC_COOKIE = 0xfeedbeef
 TYPE = 0x2
 CYCLE_WAIT = 2  # num of seconds to wait before restarting the
@@ -80,7 +80,7 @@ while True:
         data, (addr, port) = UDPclient.recvfrom(1024)
         log("received data %s from IP %s."%(data,addr))
         try:
-            (cookie,typ,port) = struct.unpack('IBH', data)
+            (cookie,typ,port) = struct.unpack('IbH', data)
             if (cookie == MAGIC_COOKIE and typ == TYPE):
                 UDPclient.close()
                 log("UDP end")
@@ -102,8 +102,6 @@ while True:
 
         # send first message (name)
         message = GROUP_NAME
-        if (MUL_CLIENT_TEST):
-            message += "_" + str(random.randint(0, 1000))
         TCPclient.send(bytes(message+"\n", 'utf-8'))
 
         # receive starting message from server

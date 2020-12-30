@@ -5,13 +5,13 @@ import struct
 import random
 from logAndColor import *
 
-SERVER_UDP_PORT = 13118
-SERVER_TCP_PORT = 5997
+SERVER_UDP_PORT = 13124
+SERVER_TCP_PORT = 0
 
-WAITING_FOR_CLIENT_COUNT = 5 # total time for the "waiting for client" mode
+WAITING_FOR_CLIENT_COUNT = 10 # total time for the "waiting for client" mode
 # WAITING_FOR_CLIENT_EXTRA = 0.2 # additional time to catch last requests
-GAME_MODE_COUNT = 5  # total time for the game mode
-CYCLE_WAIT = 5
+GAME_MODE_COUNT = 10  # total time for the game mode
+CYCLE_WAIT = 10
 UDP_TIMEOUT = 0.2  # timeout for UDP server
 CALC_WAIT = 0.02  # allows for calculation of the high score for the various client threads
 
@@ -63,7 +63,7 @@ class UDPBroadcast(threading.Thread):
             UDP_server.settimeout(UDP_TIMEOUT)
 
             # sending broadcast messages
-            UDP_message = struct.pack('IBH', MAGIC_COOKIE, TYPE, SERVER_TCP_PORT)  # encode cookie, type and TCP port
+            UDP_message = struct.pack('IbH', MAGIC_COOKIE, TYPE, SERVER_TCP_PORT)  # encode cookie, type and TCP port
             for i in range(WAITING_FOR_CLIENT_COUNT):  # repeat 10 times
                 UDP_server.sendto(UDP_message, ('<broadcast>', SERVER_UDP_PORT))
                 lowLog("%s) message sent!"%i)
@@ -155,7 +155,7 @@ class ClientThread(threading.Thread):
             result_event.wait()
 
             self.client_socket.send(bytes(end_message, 'utf-8'))
-            log("sent game end message (\"%s...\") to %s/%s" % (end_message[:25], self.client_ip, self.client_port))
+            log("sent game end message (\"%s...\") to %s/%s" % (end_message[:10], self.client_ip, self.client_port))
 
         except Exception as e:
             print("Client socket %s/%s failed." %(self.client_ip, self.client_port))
@@ -182,9 +182,10 @@ while True:
         TCP_server_IP = socket.gethostbyname(socket.gethostname())  # get the IP for printing the message
         server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # allow multiple clients (important)
-        server.bind(('', SERVER_TCP_PORT))
+        server.bind(('', 0))
+        (addr, SERVER_TCP_PORT) = server.getsockname()
         server.listen(1)
-        print("Server started, listening on IP address %s for %s seconds" % (TCP_server_IP,WAITING_FOR_CLIENT_COUNT))
+        print("Server started, listening on IP address %s in port %s for %s seconds" % (TCP_server_IP, SERVER_TCP_PORT, WAITING_FOR_CLIENT_COUNT))
 
         # UDP thread start
         UDP_thread = UDPBroadcast()
