@@ -1,7 +1,7 @@
 import random
 
-DEBUG = False
-LOW_DEBUG = DEBUG and True
+DEBUG = True
+LOW_DEBUG = DEBUG and False
 
 def log(st):
     if DEBUG:
